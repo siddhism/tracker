@@ -1,5 +1,7 @@
 from django.shortcuts import render
 from django.contrib.auth.models import User
+from django.contrib.gis.geos import GEOSGeometry
+from django.utils import timezone
 
 from rest_framework import generics
 from rest_framework import status
@@ -32,23 +34,38 @@ class DateTimeRangeFilter(object):
         qs = qs.distinct()
         return qs
 
-    def filter_queryset(self, request, queryset):
-        start_value = request.query_params.get(self.start_lookup)
-        end_value = request.query_params.get(self.end_lookup)
-        queryset = self.filter(queryset, start_value, end_value)
-        return queryset
 
-
-# Create your views here.
 class IndexView(DateTimeRangeFilter, APIView):
     """
+    Index view for API
     """
     allowed_methods = ['GET', 'POST', 'PUT']
     serializer_class = TrackSerializer
 
+    def get_distance_covered(self, queryset):
+        """
+        Iterate over all points and sum up distance
+        """
+        distance = 0
+        queryset = queryset.order_by('-created_at')
+        starting_point = queryset.first()
+        if not queryset.exists() or not starting_point:
+            return distance
+        for i in range(1, queryset.count()):
+            source = queryset[i-1]
+            destination = queryset[i]
+            source_location = GEOSGeometry(source.location)
+            destination_location = GEOSGeometry(destination.location)
+            delta = source_location.distance(destination_location)
+            distance = distance + delta
+        return distance
+
+
     def get(self, request, *args, **kwargs):
         queryset = Track.objects.all()
         user_id = request.query_params.get('user')
+
+        # If user id is provided return that particular user's data
         if user_id:
             try:
                 user = User.objects.get(id=user_id)
@@ -56,10 +73,20 @@ class IndexView(DateTimeRangeFilter, APIView):
                 return Response({'reason': 'User does not exist'}, status=status.HTTP_400_BAD_REQUEST)
             queryset = queryset.filter(user=user)
 
-        queryset = self.filter_queryset(request, queryset)
+        start_value = request.query_params.get(self.start_lookup)
+        end_value = request.query_params.get(self.end_lookup)
 
+        if start_value or end_value:
+            queryset = self.filter(queryset, start_value, end_value)
+        else:
+            # If no date range is supplied we return data of today only
+            start_value = timezone.now().replace(hour=0, minute=0, second=0)
+            queryset = self.filter(queryset, start_value)
+
+        distance = self.get_distance_covered(queryset)
         serializer = self.serializer_class(queryset, many=True)
-        return Response(serializer.data, status=status.HTTP_200_OK)
+        data = {'distance': distance, 'data': serializer.data}
+        return Response(data, status=status.HTTP_200_OK)
 
     def post(self, request, *args, **kwargs):
         """
@@ -67,11 +94,13 @@ class IndexView(DateTimeRangeFilter, APIView):
         """
         from django.contrib.gis.geos import Point
         user_id = request.data.get('user')
-        # if not User.objects.filter(id=user_id).exists():
-        #     raise Exception
 
         cords = request.data.get('location')
-        # TODO : put validation here
+
+        if not len(cords.split(',')) == 2:
+            reason = 'please supply co ordinates seperated by comma'
+            return Response({'reason': reason}, status=status.HTTP_400_BAD_REQUEST)
+
         x = int(cords.split(',')[0].strip())
         y = int(cords.split(',')[1].strip())
         location = Point(x, y, srid=4326)
