@@ -101,8 +101,8 @@ class IndexView(DateTimeRangeFilter, APIView):
             reason = 'please supply co ordinates seperated by comma'
             return Response({'reason': reason}, status=status.HTTP_400_BAD_REQUEST)
 
-        x = int(cords.split(',')[0].strip())
-        y = int(cords.split(',')[1].strip())
+        x = float(cords.split(',')[0].strip())
+        y = float(cords.split(',')[1].strip())
         location = Point(x, y, srid=4326)
         data = request.data.dict()
         data['location'] = location
