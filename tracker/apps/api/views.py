@@ -64,7 +64,7 @@ class IndexView(DateTimeRangeFilter, APIView):
             destination = queryset[i]
             source_location = self.get_coords_tuple(source.location)
             destination_location = self.get_coords_tuple(destination.location)
-            delta = vincenty(source_location, destination_location).miles
+            delta = vincenty(source_location, destination_location).km
             distance = distance + delta
         return distance
 

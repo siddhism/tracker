@@ -1,8 +1,17 @@
 from __future__ import unicode_literals
+import re
 
 from django.contrib.auth.models import User
 from django.db import models
 from django.core.exceptions import ImproperlyConfigured
+from django.forms import ValidationError
+
+def validate_lat_long(value):
+    regex = '^[-+]?([1-8]?\\d(\\.\\d+)?|90(\\.0+)?),\\s*[-+]?(180(\\.0+)?|((1[0-7]\\d)|([1-9]?\\d))(\\.\\d+)?)$'
+    if not re.match(regex, value):
+        raise ValidationError(
+            '{} is not a valid location'.format(value)
+        )
 
 class Track(models.Model):
     """
@@ -11,7 +20,7 @@ class Track(models.Model):
     """
     user = models.ForeignKey(User)
     created_at = models.DateTimeField(auto_now_add=True)
-    location = models.CharField(max_length=50)
+    location = models.CharField(max_length=50, validators=[validate_lat_long])
 
 
     def save(self, **kwargs):
