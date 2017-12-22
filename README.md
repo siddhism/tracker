@@ -12,13 +12,7 @@
 ```
     ./setup.sh
 ```
-
 OR
-
-* System Dependencies : geo django 
-Uses django.contrib.gis.db.backends.spatialite as DB backend engine
-* platform specific packages can be downloaded from https://docs.djangoproject.com/en/2.0/ref/contrib/gis/
-
 
 ```
     virtualenv env_tracker
@@ -46,11 +40,11 @@ http://localhost:7001/api/tracks/
 
 ```
 
-http://localhost:7001/api/tweets/?created_at__start=2017-12-19T07:10:00Z
+http://localhost:7001/api/tracks/?created_at__start=2017-12-19T07:10:00Z
 
-http://localhost:7001/api/tweets/?created_at__end=2017-12-19T07:10:00Z
+http://localhost:7001/api/tracks/?created_at__end=2017-12-19T07:10:00Z
 
-http://localhost:7001/api/tweets/?created_at__start=2017-12-19T07:10:00Z&created_at__end=2017-12-19T07:10:00Z
+http://localhost:7001/api/tracks/?created_at__start=2017-12-19T07:10:00Z&created_at__end=2017-12-19T07:10:00Z
 ```
 
 ### User based filtering

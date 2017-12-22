@@ -1,6 +1,5 @@
 from django.shortcuts import render
 from django.contrib.auth.models import User
-from django.contrib.gis.geos import GEOSGeometry
 from django.utils import timezone
 
 from rest_framework import generics
@@ -42,21 +41,30 @@ class IndexView(DateTimeRangeFilter, APIView):
     allowed_methods = ['GET', 'POST', 'PUT']
     serializer_class = TrackSerializer
 
+    def get_coords_tuple(self, location):
+        latitude = float(location.split(',')[0].strip())
+        longitude = float(location.split(',')[1].strip())
+        return (latitude, longitude)
+
+
     def get_distance_covered(self, queryset):
         """
         Iterate over all points and sum up distance
         """
+        from geopy.distance import vincenty
+
         distance = 0
         queryset = queryset.order_by('-created_at')
         starting_point = queryset.first()
         if not queryset.exists() or not starting_point:
             return distance
+
         for i in range(1, queryset.count()):
             source = queryset[i-1]
             destination = queryset[i]
-            source_location = GEOSGeometry(source.location)
-            destination_location = GEOSGeometry(destination.location)
-            delta = source_location.distance(destination_location)
+            source_location = self.get_coords_tuple(source.location)
+            destination_location = self.get_coords_tuple(destination.location)
+            delta = vincenty(source_location, destination_location).miles
             distance = distance + delta
         return distance
 
@@ -92,7 +100,6 @@ class IndexView(DateTimeRangeFilter, APIView):
         """
         Accepts comma seperated values as API params and converts them to geos Point
         """
-        from django.contrib.gis.geos import Point
         user_id = request.data.get('user')
 
         cords = request.data.get('location')
@@ -101,13 +108,17 @@ class IndexView(DateTimeRangeFilter, APIView):
             reason = 'please supply co ordinates seperated by comma'
             return Response({'reason': reason}, status=status.HTTP_400_BAD_REQUEST)
 
-        x = float(cords.split(',')[0].strip())
-        y = float(cords.split(',')[1].strip())
-        location = Point(x, y, srid=4326)
-        data = request.data.dict()
-        data['location'] = location
+        points = cords.split(',')
+        try:
+            latitude = float(cords.split(',')[0].strip())
+            longitude = float(cords.split(',')[1].strip())
+        except ValueError as e:
+            print e
+            reason = 'please supply integer/float values for co ordinates seperated by comma'
+            return Response({'reason': reason}, status=status.HTTP_400_BAD_REQUEST)
 
-        serializer = self.serializer_class(data=data)
+
+        serializer = self.serializer_class(data=request.data)
         if serializer.is_valid():
             serializer.save()
             return Response(serializer.data, status=status.HTTP_201_CREATED)
